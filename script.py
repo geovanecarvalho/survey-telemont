@@ -5,11 +5,11 @@ from datetime import datetime
 from playwright.sync_api import TimeoutError
 
 def read_list():
-    lista_de_servyrs = []
-    with open("servys.csv", "r") as file:
+    lista_de_surveys= []
+    with open("survey.csv", "r") as file:
         for line in file:
-            lista_de_servyrs.append(line.strip())
-    return lista_de_servyrs
+            lista_de_surveys.append(line.strip())
+    return lista_de_surveys
 
 def loginNetwin(page, login):
     page.fill('//*[@id="inputLogin"]', "tt633973")
@@ -17,7 +17,7 @@ def loginNetwin(page, login):
     login = True
     return login
 
-def registrar_relatorio(servys, status, tempo_execucao):
+def registrar_relatorio(survey, status, tempo_execucao):
     now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     if isinstance(tempo_execucao, (int, float)):
         tempo_str = f"{tempo_execucao:.2f}s"
@@ -25,13 +25,13 @@ def registrar_relatorio(servys, status, tempo_execucao):
         tempo_str = str(tempo_execucao)
     with open("relatorio.csv", "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([servys, now, status, tempo_str])
+        writer.writerow([survey, now, status, tempo_str])
 
 def main():
     # Cria o cabeçalho do relatório apenas uma vez
     with open("relatorio.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["servys", "data_hora", "status", "tempo_execucao"])
+        writer.writerow(["survey", "data_hora", "status", "tempo_execucao"])
 
     with sync_playwright() as p:
         login = False
@@ -42,10 +42,10 @@ def main():
             start_time = time()
             try:
                 valor = lista.split(";")
-                servys = valor[0]
+                survey = valor[0]
                 complemento = valor[1][:2]
                 number = valor[1][-1]
-                print(servys, complemento, number)
+                print(survey, complemento, number)
                 page.goto("http://netwin.vtal.intra/portal/netwin/login?destination=/portal/netwin/reports")
                 page.wait_for_load_state("networkidle")
 
@@ -61,7 +61,7 @@ def main():
                 sleep(2)
                 page.click('//*[@id="operation-module-link-location-1-1"]')
                 sleep(2)
-                page.fill('//*[@id="location_locphysical_input_name"]', servys)
+                page.fill('//*[@id="location_locphysical_input_name"]', survey)
                 sleep(2)
                 page.click('//*[@id="submit_form"]')
                 page.wait_for_selector('td:nth-child(8) > div > button', state="visible", timeout=90000)
@@ -81,18 +81,24 @@ def main():
                 sleep(3)
                 page.press('//*[@id="application"]/span/span/span[1]/input', 'Enter')
                 page.fill('//*[@id="location_addresses_input_argumento3"]', number)
+                
                 sleep(2)
+                # Confirmar
                 page.click('//*[@id="modal_button_ok"]')
 
-                registrar_relatorio(servys, "Sucesso!", time() - start_time)
+                sleep(5)
+                # Salvar formulário
+                page.click('//*[@id="forms_button_save"]')
+
+                registrar_relatorio(survey, "Sucesso!", time() - start_time)
             except TimeoutError as e:
-                registrar_relatorio(servys, "Falha crítica: Excedeu o limite de tempo", "Timeout")
+                registrar_relatorio(survey, "Falha crítica: Excedeu o limite de tempo", "Timeout")
             except Exception as e:
                 msg = str(e)
                 if "connection" in msg.lower():
-                    registrar_relatorio(servys, "Falha crítica: Queda de conexão", "Conexão perdida")
+                    registrar_relatorio(survey, "Falha crítica: Queda de conexão", "Conexão perdida")
                 else:
-                    registrar_relatorio(servys, f"Falha: {msg}", time() - start_time)
+                    registrar_relatorio(survey, f"Falha: {msg}", time() - start_time)
 
 if __name__ == "__main__":
     main()
