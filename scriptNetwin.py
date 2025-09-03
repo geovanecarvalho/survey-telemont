@@ -5,6 +5,22 @@ from datetime import datetime
 from playwright.sync_api import TimeoutError
 from tqdm import tqdm
 
+NOMECLATURA_ED = {
+    "CA": "Casa",
+    "SL": "Sala",
+    "LJ": "Loja",
+    "DV": "Divisão",
+    "AP": "Apartamento",
+    "SB": "Sobrado",
+    "LT": "Lote",
+    "BL": "Bloco",
+    "GP": "Galpão",
+    "ED": "Edifício",
+    "ST": "Setor",
+    "SQ": "Super quadra"
+}
+
+
 def read_list():
     lista_de_surveys= []
     with open("survey.csv", "r") as file:
@@ -90,10 +106,12 @@ def main():
                 page.eval_on_selector('//*[@id="modal-dialog"]/div/div/div[1]/p', 'el => el.scrollIntoView()')
                 page.click('//*[@id="select2-location_addresses_select_complemento3-container"]')
 
-                if complemento == "CA":
-                    page.fill('//*[@id="application"]/span/span/span[1]/input', 'casa')
-                if complemento == "SL":
-                    page.fill('//*[@id="application"]/span/span/span[1]/input', 'sala')
+                nome_completo = NOMECLATURA_ED.get(complemento)
+                page.fill('//*[@id="application"]/span/span/span[1]/input', str(nome_completo).lower())
+                #if complemento == "CA":
+                    #page.fill('//*[@id="application"]/span/span/span[1]/input', 'casa')
+                #if complemento == "SL":
+                    #page.fill('//*[@id="application"]/span/span/span[1]/input', 'sala')
 
                 sleep(3)
                 page.press('//*[@id="application"]/span/span/span[1]/input', 'Enter')
