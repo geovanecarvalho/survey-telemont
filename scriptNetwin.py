@@ -3,6 +3,7 @@ from time import sleep, time
 import csv
 from datetime import datetime
 from playwright.sync_api import TimeoutError
+from tqdm import tqdm
 
 def read_list():
     lista_de_surveys= []
@@ -17,7 +18,7 @@ def loginNetwin(page, login):
     login = True
     return login
 
-def registrar_relatorio(survey, status, tempo_execucao):
+def registrar_relatorio(survey, endereco, status, tempo_execucao):
     now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     if isinstance(tempo_execucao, (int, float)):
         tempo_str = f"{tempo_execucao:.2f}s"
@@ -25,27 +26,30 @@ def registrar_relatorio(survey, status, tempo_execucao):
         tempo_str = str(tempo_execucao)
     with open("relatorio.csv", "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([survey, now, status, tempo_str])
+        writer.writerow([survey, endereco, now, status, tempo_str])
 
 def main():
     # Cria o cabeçalho do relatório apenas uma vez
     with open("relatorio.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["survey", "data_hora", "status", "tempo_execucao"])
+        writer.writerow(["survey", "endereco", "data_hora", "status", "tempo_execucao"])
 
     with sync_playwright() as p:
         login = False
+        # Inicia o navegador visível para login
         browser = p.chromium.launch(headless=False)
         page = browser.new_page()
 
-        for lista in read_list():
+        for idx, lista in enumerate(tqdm(read_list(), desc="Processando surveys")):
             start_time = time()
             try:
                 valor = lista.split(";")
                 survey = valor[0]
                 complemento = valor[1][:2]
                 number = valor[1][-1]
-                print(f"Editando Survey: {survey}, Endereço: {complemento}, Número: {number}")
+                endereco = f"{complemento}{number}"
+                #print(f"Editando Survey: {survey}, Endereço: {endereco}")
+
                 page.goto("http://netwin.vtal.intra/portal/netwin/login?destination=/portal/netwin/reports")
                 page.wait_for_load_state("networkidle")
 
@@ -53,9 +57,22 @@ def main():
                     login = loginNetwin(page, login)
                     page.wait_for_url("http://netwin.vtal.intra/portal/netwin/reports")
                     page.wait_for_load_state("networkidle")
-
                     page.click('//*[@id="breadcrumb"]/li[1]/a')
                     sleep(2)
+
+                    # Após login, fecha o navegador visível e abre headless
+                    page.context.storage_state(path="auth.json")
+                    browser.close()
+                    # ocultar navegador
+                    browser = p.chromium.launch(headless=True)
+                    context = browser.new_context(storage_state="auth.json")
+                    page = context.new_page()
+                    # Vai direto para a página de reports já autenticado (cookies/session podem ser necessários)
+                    page.goto("http://netwin.vtal.intra/portal/netwin")
+                    page.wait_for_load_state("networkidle")
+                    login = True
+                    sleep(5)
+                    # Após login bem-sucedido, salve o estado
 
                 page.click('//*[@id="operational-module-location"]')
                 sleep(2)
@@ -89,24 +106,22 @@ def main():
                 sleep(5)
                 # Salvar formulário
                 page.click('//*[@id="forms_button_save"]')
-                print(f"Survey {survey} salvo com sucesso!")
+                #print(f"Survey {survey} salvo com sucesso!")
 
-                # aguardar salvamento
-                #page.wait_for_selector('//*[@id="loading"]/div/div/div/div', state="hidden", timeout=30000)
                 sleep(10)
 
-                registrar_relatorio(survey, "Sucesso!", time() - start_time)
+                registrar_relatorio(survey, endereco, "Sucesso!", time() - start_time)
             except TimeoutError as e:
-                registrar_relatorio(survey, "Falha crítica: Excedeu o limite de tempo", "Timeout")
-                print(f"Survey {survey} falhou: Excedeu o limite de tempo")
+                registrar_relatorio(survey, endereco, "Falha crítica: Excedeu o limite de tempo", "Timeout")
+                #print(f"Survey {survey} falhou: Excedeu o limite de tempo")
             except Exception as e:
                 msg = str(e)
                 if "connection" in msg.lower():
-                    registrar_relatorio(survey, "Falha crítica: Queda de conexão", "Conexão perdida")
-                    print(f"Survey {survey} falhou: Queda de conexão")
+                    registrar_relatorio(survey, endereco, "Falha crítica: Queda de conexão", "Conexão perdida")
+                    #print(f"Survey {survey} falhou: Queda de conexão")
                 else:
-                    registrar_relatorio(survey, f"Falha: {msg}", time() - start_time)
-                    print(f"Survey {survey} falhou: {msg}")
+                    registrar_relatorio(survey, endereco, f"Falha: {msg}", time() - start_time)
+                    #print(f"Survey {survey} falhou: {msg}")
 
 if __name__ == "__main__":
     main()
