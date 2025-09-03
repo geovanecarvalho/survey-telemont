@@ -45,7 +45,7 @@ def main():
                 survey = valor[0]
                 complemento = valor[1][:2]
                 number = valor[1][-1]
-                print(survey, complemento, number)
+                print(f"Editando Survey: {survey}, Endereço: {complemento}, Número: {number}")
                 page.goto("http://netwin.vtal.intra/portal/netwin/login?destination=/portal/netwin/reports")
                 page.wait_for_load_state("networkidle")
 
@@ -89,16 +89,24 @@ def main():
                 sleep(5)
                 # Salvar formulário
                 page.click('//*[@id="forms_button_save"]')
+                print(f"Survey {survey} salvo com sucesso!")
+
+                # aguardar salvamento
+                #page.wait_for_selector('//*[@id="loading"]/div/div/div/div', state="hidden", timeout=30000)
+                sleep(10)
 
                 registrar_relatorio(survey, "Sucesso!", time() - start_time)
             except TimeoutError as e:
                 registrar_relatorio(survey, "Falha crítica: Excedeu o limite de tempo", "Timeout")
+                print(f"Survey {survey} falhou: Excedeu o limite de tempo")
             except Exception as e:
                 msg = str(e)
                 if "connection" in msg.lower():
                     registrar_relatorio(survey, "Falha crítica: Queda de conexão", "Conexão perdida")
+                    print(f"Survey {survey} falhou: Queda de conexão")
                 else:
                     registrar_relatorio(survey, f"Falha: {msg}", time() - start_time)
+                    print(f"Survey {survey} falhou: {msg}")
 
 if __name__ == "__main__":
     main()
