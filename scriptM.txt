@@ -1,0 +1,56 @@
+(tbl as table) as table =>
+let
+    Fonte = Table.Buffer(tbl),
+
+    // adiciona índice global para preservar ordem original
+    ComIndice = Table.AddIndexColumn(Fonte, "_ordem", 1, 1, Int64.Type),
+
+    // agrupa por "chave log" em vez de COMPLEMENTO2
+    Contagem = Table.Group(
+        ComIndice,
+        {"CHAVE LOG"},
+        {
+            {"Qtd", each Table.RowCount(_), Int64.Type},
+            {"Dados", each Table.SelectColumns(_, {"COMPLEMENTO3","_ordem"}), type table [COMPLEMENTO3=nullable text, _ordem=Int64.Type]}
+        }
+    ),
+
+    // função que cria a lista esperada e atribui "Resultado" por posição
+    Preencher = (t as table, qtd as number) as table =>
+    let
+        valoresValidos = List.RemoveNulls(List.Transform(t[COMPLEMENTO3], each if _ = null then null else Text.Trim(_))),
+        exemplo = if List.Count(valoresValidos) > 0 then valoresValidos{0} else null,
+
+        // detecta prefixo (ex: "CA", "SL"); se não achar usa "CA"
+        prefixo =
+            if exemplo = null then "CA" else
+            let
+                semDigitos = Text.Trim(Text.Remove(exemplo, {"0".."9"})),
+                tokens = List.Select(Text.Split(semDigitos, " "), each _ <> "")
+            in if List.Count(tokens) > 0 then tokens{0} else "CA",
+
+        // mantém formato com/sem espaço
+        espaco = if exemplo <> null and Text.Contains(exemplo, " ") then " " else "",
+
+        // lista completa 1..qtd
+        Esperado = List.Transform({1..qtd}, each prefixo & espaco & Text.From(_)),
+
+        // atribui Resultado conforme posição da linha no grupo
+        t1 = Table.AddIndexColumn(t, "_idx", 1, 1, Int64.Type),
+        t2 = Table.AddColumn(t1, "Resultado", each Esperado{[ _idx ] - 1}, type text),
+        t3 = Table.RemoveColumns(t2, {"_idx"})
+    in
+        t3,
+
+    // processa cada grupo (usando AddColumn para poder passar Qtd)
+    Contagem2 = Table.AddColumn(Contagem, "Dados2", each Preencher([Dados], [Qtd]), type table),
+
+    // remove a coluna Dados original e expande a Dados2 (sem conflito de nomes)
+    RemoverDados = Table.RemoveColumns(Contagem2, {"Dados"}),
+    Expandido = Table.ExpandTableColumn(RemoverDados, "Dados2", {"COMPLEMENTO3","_ordem","Resultado"}),
+
+    // volta à ordem original e remove coluna auxiliar
+    Ordenado = Table.Sort(Expandido, {{"_ordem", Order.Ascending}}),
+    Final = Table.RemoveColumns(Ordenado, {"_ordem"})
+in
+    Final
