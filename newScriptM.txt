@@ -1,0 +1,51 @@
+(tbl as table) as table =>
+let
+    Fonte = Table.Buffer(tbl),
+
+    // Normaliza o texto
+    AjusteTexto = Table.TransformColumns(Fonte, {
+        {"COMPLEMENTO3", each if _ = null then "" else Text.Upper(Text.Trim(_)), type text}
+    }),
+
+    // Extrai prefixo
+    AdicionaPrefixo =
+        Table.AddColumn(
+            AjusteTexto,
+            "Prefixo",
+            each try Text.Start([COMPLEMENTO3], 2) otherwise null,
+            type text
+        ),
+
+    // Remove prefixos inválidos
+    FiltraPrefixo =
+        Table.SelectRows(
+            AdicionaPrefixo,
+            each [Prefixo] <> null and [Prefixo] <> ""
+        ),
+
+    // Agrupa por CHAVE LOG e Prefixo para criar numeração
+    Agrupado =
+        Table.Group(
+            FiltraPrefixo,
+            {"CHAVE LOG", "Prefixo"},
+            {{"Todas", each Table.AddIndexColumn(_, "Ordem", 1, 1, Int64.Type), type table}}
+        ),
+
+    // Expande apenas as colunas necessárias
+    Expande =
+        Table.ExpandTableColumn(
+            Agrupado,
+            "Todas",
+            {"COMPLEMENTO3","Ordem"}
+        ),
+
+    // Junta prefixo + número
+    Resultado =
+        Table.AddColumn(
+            Expande,
+            "Resultado",
+            each [Prefixo] & " " & Text.From([Ordem]),
+            type text
+        )
+in
+    Resultado

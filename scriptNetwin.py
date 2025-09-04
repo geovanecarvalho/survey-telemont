@@ -64,7 +64,7 @@ def main():
                 complemento = valor[1][:2]
                 number = valor[1][-1]
                 endereco = f"{complemento}{number}"
-                #print(f"Editando Survey: {survey}, Endereço: {endereco}")
+                print(f"Editando Survey: {survey}, Endereço: {endereco}")
 
                 page.goto("http://netwin.vtal.intra/portal/netwin/login?destination=/portal/netwin/reports")
                 page.wait_for_load_state("networkidle")
@@ -89,7 +89,7 @@ def main():
                     login = True
                     sleep(5)
                     # Após login bem-sucedido, salve o estado
-
+                print(f"Processando pesquisa survey {survey}")
                 page.click('//*[@id="operational-module-location"]')
                 sleep(2)
                 page.click('//*[@id="operation-module-link-location-1-1"]')
@@ -97,7 +97,7 @@ def main():
                 page.fill('//*[@id="location_locphysical_input_name"]', survey)
                 sleep(2)
                 page.click('//*[@id="submit_form"]')
-                page.wait_for_selector('td:nth-child(8) > div > button', state="visible", timeout=90000)
+                page.wait_for_selector('td:nth-child(8) > div > button', state="visible", timeout=200000)
                 page.click('td:nth-child(8) > div > button')
                 page.click('td:nth-child(8) > div > ul > li:nth-child(1) > a')
                 page.click('//*[@id="location_tab_localization"]')
@@ -107,15 +107,34 @@ def main():
                 page.click('//*[@id="select2-location_addresses_select_complemento3-container"]')
 
                 nome_completo = NOMECLATURA_ED.get(complemento)
-                page.fill('//*[@id="application"]/span/span/span[1]/input', str(nome_completo).lower())
+                
                 #if complemento == "CA":
                     #page.fill('//*[@id="application"]/span/span/span[1]/input', 'casa')
                 #if complemento == "SL":
                     #page.fill('//*[@id="application"]/span/span/span[1]/input', 'sala')
 
-                sleep(3)
-                page.press('//*[@id="application"]/span/span/span[1]/input', 'Enter')
-                page.fill('//*[@id="location_addresses_input_argumento3"]', number)
+                # Verifica se o select está desabilitado pela classe
+                select_locator = page.locator('//*[@id="select2-location_addresses_select_complemento3-container"]/ancestor::span[contains(@class, "select2-container")]')
+                classes = select_locator.get_attribute("class")
+
+                if "select2-container--disabled" in classes:
+                    print("Input complemento 3 está desabilitado")
+                    sleep(3)
+                    page.click('//*[@id="location_section_caracterizacao"]/div/div/div[3]/div[2]/div[6]/div[1]/div/div/div/span')
+                    sleep(1)
+                    page.fill('//*[@id="application"]/span/span/span[1]/input', str(nome_completo).lower())
+                    page.press('//*[@id="application"]/span/span/span[1]/input', 'Enter')
+                
+                    sleep(2)
+                    page.fill('//*[@id="location_addresses_input_argumento2"]', number)
+                else:
+                    print("Input complemento 3 está habilitado")
+                    sleep(3)
+                    page.fill('//*[@id="application"]/span/span/span[1]/input', str(nome_completo).lower())
+                    page.press('//*[@id="application"]/span/span/span[1]/input', 'Enter')
+
+                    sleep(2)
+                    page.fill('//*[@id="location_addresses_input_argumento3"]', number)
                 
                 sleep(2)
                 # Confirmar
@@ -124,22 +143,22 @@ def main():
                 sleep(5)
                 # Salvar formulário
                 page.click('//*[@id="forms_button_save"]')
-                #print(f"Survey {survey} salvo com sucesso!")
+                print(f"Survey {survey} salvo com sucesso!, {time() - start_time}")
 
-                sleep(10)
+                sleep(15)
 
                 registrar_relatorio(survey, endereco, "Sucesso!", time() - start_time)
             except TimeoutError as e:
                 registrar_relatorio(survey, endereco, "Falha crítica: Excedeu o limite de tempo", "Timeout")
-                #print(f"Survey {survey} falhou: Excedeu o limite de tempo")
+                print(f"Survey {survey} falhou: Excedeu o limite de tempo")
             except Exception as e:
                 msg = str(e)
                 if "connection" in msg.lower():
                     registrar_relatorio(survey, endereco, "Falha crítica: Queda de conexão", "Conexão perdida")
-                    #print(f"Survey {survey} falhou: Queda de conexão")
+                    print(f"Survey {survey} falhou: Queda de conexão")
                 else:
                     registrar_relatorio(survey, endereco, f"Falha: {msg}", time() - start_time)
-                    #print(f"Survey {survey} falhou: {msg}")
+                    print(f"Survey {survey} falhou: {msg}")
 
 if __name__ == "__main__":
     main()
