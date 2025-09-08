@@ -1,0 +1,7 @@
+Text.Trim(
+    Text.Combine(
+        List.Transform({[ESTACAO_ABASTECEDORA],[LOCALIDADE], [LOGRADOURO], [COMPLEMENTO], [COMPLEMENTO2]}, 
+            each if _ = null then "" else _),
+        "-"
+    ),
+"-")

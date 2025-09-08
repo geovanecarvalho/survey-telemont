@@ -2,8 +2,28 @@
 let
     Fonte = Table.Buffer(tbl),
 
+    // Cria coluna CHAVE LOG a partir da concatenação
+    AddChaveLog = Table.AddColumn(
+        Fonte,
+        "CHAVE LOG",
+        each Text.Trim(
+            Text.Combine(
+                List.Transform(
+                    {[ESTACAO_ABASTECEDORA],[LOCALIDADE],[LOGRADOURO],[COMPLEMENTO],[COMPLEMENTO2]},
+                    each if _ = null then "" else Text.Trim(_)
+                ),
+                "-"
+            ),
+            "-"
+        ),
+        type text
+    ),
+
+    // Reordena para colocar CHAVE LOG como primeira coluna
+    Reordena = Table.ReorderColumns(AddChaveLog, {"CHAVE LOG"} & List.RemoveItems(Table.ColumnNames(AddChaveLog), {"CHAVE LOG"})),
+
     // Normaliza o texto
-    AjusteTexto = Table.TransformColumns(Fonte, {
+    AjusteTexto = Table.TransformColumns(Reordena, {
         {"COMPLEMENTO3", each if _ = null then "" else Text.Upper(Text.Trim(_)), type text}
     }),
 
@@ -31,21 +51,27 @@ let
             {{"Todas", each Table.AddIndexColumn(_, "Ordem", 1, 1, Int64.Type), type table}}
         ),
 
-    // Expande apenas as colunas necessárias
+    // Descobre as colunas originais sem duplicar chave
+    ColunasParaExpandir = List.Difference(Table.ColumnNames(FiltraPrefixo), {"CHAVE LOG","Prefixo"}),
+
+    // Expande sem duplicar CHAVE LOG
     Expande =
         Table.ExpandTableColumn(
             Agrupado,
             "Todas",
-            {"COMPLEMENTO3","Ordem"}
+            ColunasParaExpandir & {"Ordem"}
         ),
 
     // Junta prefixo + número
-    Resultado =
+    AdicionaResultado =
         Table.AddColumn(
             Expande,
             "Resultado",
             each [Prefixo] & " " & Text.From([Ordem]),
             type text
-        )
+        ),
+
+    // Remove colunas auxiliares
+    RemoveCols = Table.RemoveColumns(AdicionaResultado, {"Prefixo"})
 in
-    Resultado
+    RemoveCols
