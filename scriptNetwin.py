@@ -204,10 +204,10 @@ def main():
                     print("3 erros consecutivos de conexão detectados. Encerrando execução.")
                     registrar_relatorio(survey, endereco, "Falha crítica: Queda de conexão", "3 erros consecutivos de conexão detectados. Execução finalizada.")
                     break
-            else:
-                registrar_relatorio(survey, endereco, f"Falha: {msg}", formatar_tempo(time() - start_time))
-                print(f"Survey {survey} falhou: {msg} tempo: {formatar_tempo(time() - start_time)}\n")
-                erros_consecutivos_conexao = 0  # Zera para outros tipos de erro
+                else:
+                    registrar_relatorio(survey, endereco, f"Falha: {msg}", formatar_tempo(time() - start_time))
+                    print(f"Survey {survey} falhou: {msg} tempo: {formatar_tempo(time() - start_time)}\n")
+                    erros_consecutivos_conexao = 0  # Zera para outros tipos de erro
                
 
 if __name__ == "__main__":
