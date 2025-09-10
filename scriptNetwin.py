@@ -71,7 +71,7 @@ def main():
     with sync_playwright() as p:
         login = False
         # Inicia o navegador visível para login
-        browser = p.chromium.launch(headless=False)
+        browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
         erros_consecutivos_conexao = 0  # Contador de erros consecutivos de conexão
@@ -100,7 +100,7 @@ def main():
                     page.context.storage_state(path="auth.json")
                     browser.close()
                     # ocultar navegador
-                    browser = p.chromium.launch(headless=False)
+                    browser = p.chromium.launch(headless=True)
                     context = browser.new_context(storage_state="auth.json")
                     page = context.new_page()
                     # Vai direto para a página de reports já autenticado (cookies/session podem ser necessários)
