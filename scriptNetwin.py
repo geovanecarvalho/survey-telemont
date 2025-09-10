@@ -1,6 +1,6 @@
 from playwright.sync_api import sync_playwright
 from time import sleep, time
-import csv
+import csv, os
 from datetime import datetime
 from playwright.sync_api import TimeoutError
 from tqdm import tqdm
@@ -37,18 +37,36 @@ def loginNetwin(page, login):
 def registrar_relatorio(survey, endereco, status, tempo_execucao):
     now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     if isinstance(tempo_execucao, (int, float)):
-        tempo_str = f"{tempo_execucao:.2f}s"
+        tempo_str = tempo_execucao
     else:
         tempo_str = str(tempo_execucao)
     with open("relatorio.csv", "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([survey, endereco, now, status, tempo_str])
 
+def formatar_tempo(segundos):
+    # Separar parte inteira (segundos) da parte decimal (milissegundos)
+    segundos_int = int(segundos)
+    milissegundos = int((segundos - segundos_int) * 1000)
+
+    # Calcular horas, minutos e segundos
+    horas = segundos_int // 3600
+    minutos = (segundos_int % 3600) // 60
+    segundos_restantes = segundos_int % 60
+
+    # Retornar no formato desejado
+    # horas, minutos, segundos e milissegundos
+    # return f"{horas:02d}:{minutos:02d}:{segundos_restantes:02d}:{milissegundos:03d}"
+    # horas, minutos e segundos
+    return f"{horas:02d}:{minutos:02d}:{segundos_restantes:02d}"
+
+
 def main():
-    # Cria o cabeçalho do relatório apenas uma vez
-    with open("relatorio.csv", "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["survey", "endereco", "data_hora", "status", "tempo_execucao"])
+    # Cria o cabeçalho do relatório apenas se o arquivo não existir ou estiver vazio
+    if not os.path.exists("relatorio.csv") or os.path.getsize("relatorio.csv") == 0:
+        with open("relatorio.csv", "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["survey", "endereco", "data_hora", "status", "tempo_execucao"])
 
     with sync_playwright() as p:
         login = False
@@ -56,7 +74,9 @@ def main():
         browser = p.chromium.launch(headless=False)
         page = browser.new_page()
 
-        for idx, lista in enumerate(tqdm(read_list(), desc="Processando surveys")):
+        erros_consecutivos_conexao = 0  # Contador de erros consecutivos de conexão
+        
+        for idx, lista in enumerate(tqdm(read_list(), desc="Barra de progresso de surveys:")):
             start_time = time()
             try:
                 valor = lista.split(";")
@@ -64,7 +84,7 @@ def main():
                 complemento = valor[1][:2]
                 number = valor[1][-1]
                 endereco = f"{complemento}{number}"
-                print(f"Editando Survey: {survey}, Endereço: {endereco}")
+                print(f"Digitando nº de Survey: {survey}, Endereço: {endereco}")
 
                 page.goto("http://netwin.vtal.intra/portal/netwin/login?destination=/portal/netwin/reports")
                 page.wait_for_load_state("networkidle")
@@ -160,23 +180,35 @@ def main():
                 page.click('//*[@id="forms_button_save"]')
                 print("Salvou o formulário")
                 tempo_execucao = time() - start_time
-                tempo_str = f"{tempo_execucao:.2f}s"
-                print(f"Survey {survey} salvo com sucesso!, tempo: {tempo_str}")
+                # tempo_str = f"{tempo_execucao:.2f}s"
+                print(f"Survey {survey} salvo com sucesso!, tempo: {formatar_tempo(tempo_execucao)}\n")
 
                 sleep(15)
-
-                registrar_relatorio(survey, endereco, "Sucesso!", time() - start_time)
+                
+                registrar_relatorio(survey, endereco, "Sucesso!", formatar_tempo(tempo_execucao))
+                erros_consecutivos_conexao = 0  # Zera contador em caso de sucesso
+            
             except TimeoutError as e:
-                registrar_relatorio(survey, endereco, "Falha crítica: Excedeu o limite de tempo", "Timeout")
-                print(f"Survey {survey} falhou: Excedeu o limite de tempo")
+                registrar_relatorio(survey, endereco, "Falha crítica: Excedeu o limite de tempo", formatar_tempo(time() - start_time))
+                print(f"Survey {survey} falhou: Excedeu o limite de tempo\n")
+                erros_consecutivos_conexao = 0  # Não conta timeout como erro de conexão
+            
             except Exception as e:
                 msg = str(e)
                 if "connection" in msg.lower():
                     registrar_relatorio(survey, endereco, "Falha crítica: Queda de conexão", "Conexão perdida")
-                    print(f"Survey {survey} falhou: Queda de conexão")
-                else:
-                    registrar_relatorio(survey, endereco, f"Falha: {msg}", time() - start_time)
-                    print(f"Survey {survey} falhou: {msg}")
+                    print(f"Survey {survey} falhou: Queda de conexão\n")
+                    erros_consecutivos_conexao += 1
+                
+                if erros_consecutivos_conexao >= 3:
+                    print("3 erros consecutivos de conexão detectados. Encerrando execução.")
+                    registrar_relatorio(survey, endereco, "Falha crítica: Queda de conexão", "3 erros consecutivos de conexão detectados. Execução finalizada.")
+                    break
+            else:
+                registrar_relatorio(survey, endereco, f"Falha: {msg}", formatar_tempo(time() - start_time))
+                print(f"Survey {survey} falhou: {msg} tempo: {formatar_tempo(time() - start_time)}\n")
+                erros_consecutivos_conexao = 0  # Zera para outros tipos de erro
+               
 
 if __name__ == "__main__":
     main()
